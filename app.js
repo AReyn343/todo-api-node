@@ -20,14 +20,13 @@ app.use("/todos", todoRouter);
 
 // Global error handler
 app.use((err, _req, res, _next) => {
-  console.error(err.stack);
   res.status(500).json({ detail: "Internal server error" });
 });
 
 const PORT = process.env.PORT || 3000;
 
 if (require.main === module) {
-  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  app.listen(PORT);
 }
 
 module.exports = app;
