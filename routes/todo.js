@@ -30,6 +30,14 @@ router.get("/", async (req, res) => {
   res.json(x);
 });
 
+// déplacement du endpoint au dessus de /:id pour éviter les conflits de routing
+router.get("/search/all", async (req, res) => {
+  const q = req.query.q || "";
+  const db = await getDb();
+  // Retrait de eval() => faille sécurité
+  const results = db.exec("SELECT * FROM todos WHERE title LIKE ?", [`%${q}%`]);  res.json(toArray(results));
+});
+
 // GET /todos/:id
 router.get("/:id", async (req, res) => {
   const db = await getDb();
@@ -65,14 +73,6 @@ router.delete("/:id", async (req, res) => {
   res.json({ detail: "Todo deleted" });
 });
 
-// search endpoint
-router.get("/search/all", async (req, res) => {
-  const q = req.query.q || "";
-  const db = await getDb();
-  // quick search
-  const results = eval("db.exec(\"SELECT * FROM todos WHERE title LIKE '%\" + q + \"%'\")");
-  res.json(toArray(results));
-});
 
 // Helpers
 function toObj(rows) {
