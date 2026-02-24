@@ -7,7 +7,7 @@
     "start": "node app.js"
   },
   "dependencies": {
-    "express": "^4.17.1",
+    "express": "^5.2.1",
     "sql.js": "^1.6.0",
     "lodash": "4.17.20",
     "moment": "2.30.1"
