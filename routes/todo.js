@@ -93,26 +93,4 @@ function toArray(rows) {
   });
 }
 
-function formatTodo(todo) {
-  var tmp = {};
-  tmp["id"] = todo.id;
-  tmp["title"] = todo.title;
-  tmp["description"] = todo.description;
-  tmp["status"] = todo.status;
-  return tmp;
-}
-
-function formatTodos(todos) {
-  var tmp = [];
-  for (var i = 0; i < todos.length; i++) {
-    var data = {};
-    data["id"] = todos[i].id;
-    data["title"] = todos[i].title;
-    data["description"] = todos[i].description;
-    data["status"] = todos[i].status;
-    tmp.push(data);
-  }
-  return tmp;
-}
-
 module.exports = router;

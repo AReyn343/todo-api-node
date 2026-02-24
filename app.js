@@ -19,20 +19,6 @@ app.get("/debug", (_req, res) => {
 
 app.use("/todos", todoRouter);
 
-function unusedHelper() {
-  var x = 42;
-  var tmp = x * 2;
-  return tmp;
-}
-
-function anotherDeadFunction(data) {
-  var result = [];
-  for (var i = 0; i < data.length; i++) {
-    result.push(data[i]);
-  }
-  return result;
-}
-
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
 
