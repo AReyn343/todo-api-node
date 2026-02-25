@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: ["main"]
+    branches: [main]
   pull_request:
-    branches: ["main"]
+    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -12,9 +12,8 @@ concurrency:
 
 jobs:
   quality:
-    name: Lint + Tests + Coverage
+    name: Lint + Tests + Coverage (+Codecov)
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,24 +33,52 @@ jobs:
       - name: Tests + Coverage
         run: npm run test:coverage
 
-      - name: Security audit (prod) - non blocking
-        run: npm audit --omit=dev || true
+      - name: Upload coverage to Codecov (non-blocking)
+        uses: codecov/codecov-action@v4
+        with:
+          # OK si absent (public repo), et non bloquant si erreur
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
 
-  docker:
-    name: Build + Push Docker image to GHCR
+  security:
+    name: Security Scan (blocking)
     runs-on: ubuntu-latest
-    needs: quality
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    permissions:
-      contents: read
-      packages: write
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Compute image tags
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: npm audit (HIGH+)
+        run: npm audit --audit-level=high --omit=dev
+
+      - name: Trivy filesystem scan (HIGH,CRITICAL)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+  docker:
+    name: Build Docker + Trivy Image Scan + Push GHCR (push only on main)
+    runs-on: ubuntu-latest
+    needs: [quality, security]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute image tags (lowercase)
         id: meta
         run: |
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
@@ -59,18 +86,68 @@ jobs:
           echo "tag_latest=$IMAGE:latest" >> $GITHUB_OUTPUT
           echo "tag_sha=$IMAGE:${GITHUB_SHA}" >> $GITHUB_OUTPUT
 
+      # Build image locale pour vérification, pas de push
+      - name: Build Docker image (local)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: |
+            ${{ steps.meta.outputs.tag_latest }}
+            ${{ steps.meta.outputs.tag_sha }}
+
+      - name: Trivy image scan (HIGH,CRITICAL) - blocking
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: image
+          image-ref: ${{ steps.meta.outputs.tag_sha }}
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
       - name: Login to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: |
-            ${{ steps.meta.outputs.tag_latest }}
-            ${{ steps.meta.outputs.tag_sha }}
+      # Push uniquement sur main
+      - name: Push Docker images to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker push "${{ steps.meta.outputs.tag_sha }}"
+          docker push "${{ steps.meta.outputs.tag_latest }}"
+
+  deploy:
+    name: Deploy to Render + Health check (backoff x10)
+    runs-on: ubuntu-latest
+    needs: [docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Trigger Render deploy hook
+        run: |
+          curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
+
+      - name: Health check with backoff (10 tries)
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          set -e
+          url="${APP_URL%/}/health"
+          echo "Health check: $url"
+
+          for i in $(seq 1 10); do
+            if curl -fsS "$url" > /dev/null; then
+              echo "Health check OK on attempt $i"
+              exit 0
+            fi
+
+            sleep_seconds=$((2**i))
+            echo "Attempt $i failed. Retrying in ${sleep_seconds}s..."
+            sleep "${sleep_seconds}"
+          done
+
+          echo "Health check failed after 10 attempts"
+          exit 1
