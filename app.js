@@ -1,6 +1,6 @@
 require("dotenv").config();
 const express = require("express");
-const helmet = require("helmet");
+app.use(helmet({ contentSecurityPolicy: false }));
 const swaggerUi = require("swagger-ui-express");
 const swaggerJSDoc = require("swagger-jsdoc");
 const todoRouter = require("./routes/todo");
