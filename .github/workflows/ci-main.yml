@@ -109,9 +109,8 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs: [docker]
-    env:
-      RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
-      APP_URL: ${{ secrets.APP_URL }}
+    environment:
+      name: production
     steps:
       - name: Trigger Render production deploy
         if: env.RENDER_DEPLOY_HOOK != ''
