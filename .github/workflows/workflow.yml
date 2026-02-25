@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -140,8 +140,40 @@ jobs:
           docker push "${{ steps.meta.outputs.tag_sha }}"
           docker push "${{ steps.meta.outputs.tag_latest }}"
 
-  deploy:
-    name: Deploy to Render + Health check (backoff x10)
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    env:
+      STAGING_DEPLOY_HOOK: ${{ secrets.STAGING_DEPLOY_HOOK }}
+      STAGING_URL: ${{ secrets.STAGING_URL }}
+    steps:
+      - name: Trigger Render staging deploy
+        if: env.STAGING_DEPLOY_HOOK != ''
+        run: |
+          curl -fsSL -X POST "${{ secrets.STAGING_DEPLOY_HOOK }}"
+
+      - name: Health check staging (backoff x10)
+        if: env.STAGING_URL != ''
+        run: |
+          set -e
+          url="${STAGING_URL%/}/health"
+          echo "Health check staging: $url"
+          for i in $(seq 1 10); do
+            if curl -fsS "$url" > /dev/null; then
+              echo "Staging OK on attempt $i"
+              exit 0
+            fi
+            sleep_seconds=$((2**i))
+            echo "Attempt $i failed. Retrying in ${sleep_seconds}s..."
+            sleep "${sleep_seconds}"
+          done
+          echo "Staging health check failed"
+          exit 1
+
+  deploy-production:
+    name: Deploy to Production
     runs-on: ubuntu-latest
     needs: [docker]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -149,30 +181,25 @@ jobs:
       RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
       APP_URL: ${{ secrets.APP_URL }}
     steps:
-      - name: Trigger Render deploy hook
+      - name: Trigger Render production deploy
         if: env.RENDER_DEPLOY_HOOK != ''
         run: |
           curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
 
-      - name: Health check with backoff (10 tries)
+      - name: Health check production (backoff x10)
         if: env.APP_URL != ''
-        env:
-          APP_URL: ${{ secrets.APP_URL }}
         run: |
           set -e
           url="${APP_URL%/}/health"
-          echo "Health check: $url"
-
+          echo "Health check production: $url"
           for i in $(seq 1 10); do
             if curl -fsS "$url" > /dev/null; then
-              echo "Health check OK on attempt $i"
+              echo "Production OK on attempt $i"
               exit 0
             fi
-
             sleep_seconds=$((2**i))
             echo "Attempt $i failed. Retrying in ${sleep_seconds}s..."
             sleep "${sleep_seconds}"
           done
-
-          echo "Health check failed after 10 attempts"
+          echo "Production health check failed"
           exit 1
