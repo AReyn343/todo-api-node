@@ -8,7 +8,7 @@
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix",
     "test": "jest --testEnvironment=node",
-    "test:coverage": "jest --testEnvironment=node --coverage"
+    "test:coverage": "jest --testEnvironment=node --coverage --coverageReporters=text --coverageReporters=lcov"
   },
   "dependencies": {
     "dotenv": "^17.3.1",
