@@ -145,14 +145,17 @@ jobs:
     runs-on: ubuntu-latest
     needs: [docker]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    env:
+      RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+      APP_URL: ${{ secrets.APP_URL }}
     steps:
       - name: Trigger Render deploy hook
-        if: ${{ secrets.RENDER_DEPLOY_HOOK != '' }}
+        if: env.RENDER_DEPLOY_HOOK != ''
         run: |
           curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
 
       - name: Health check with backoff (10 tries)
-        if: ${{ secrets.APP_URL != '' }}
+        if: env.APP_URL != ''
         env:
           APP_URL: ${{ secrets.APP_URL }}
         run: |
