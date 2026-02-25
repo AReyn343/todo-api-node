@@ -1,0 +1,104 @@
+name: CI — Staging (develop)
+
+on:
+  push:
+    branches: [develop]
+
+concurrency:
+  group: ci-develop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint + Tests + Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test:coverage
+      - uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high --omit=dev
+      - uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+
+  docker:
+    name: Build Docker + Trivy Image Scan
+    runs-on: ubuntu-latest
+    needs: [quality, security]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compute image tags
+        id: meta
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "tag_sha=$IMAGE:${GITHUB_SHA}" >> $GITHUB_OUTPUT
+          echo "tag_latest=$IMAGE:latest" >> $GITHUB_OUTPUT
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: |
+            ${{ steps.meta.outputs.tag_sha }}
+            ${{ steps.meta.outputs.tag_latest }}
+      - uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: image
+          image-ref: ${{ steps.meta.outputs.tag_sha }}
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+          skip-dirs: /usr/local/lib/node_modules/npm,/opt/yarn-v1.22.22
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [docker]
+    env:
+      STAGING_DEPLOY_HOOK: ${{ secrets.STAGING_DEPLOY_HOOK }}
+      STAGING_URL: ${{ secrets.STAGING_URL }}
+    steps:
+      - name: Trigger Render staging deploy
+        if: env.STAGING_DEPLOY_HOOK != ''
+        run: curl -fsSL -X POST "${{ secrets.STAGING_DEPLOY_HOOK }}"
+      - name: Health check staging (backoff x15)
+        if: env.STAGING_URL != ''
+        run: |
+          set -e
+          url="${STAGING_URL%/}/health"
+          echo "Health check staging: $url"
+          for i in $(seq 1 15); do
+            if curl -fsS "$url" > /dev/null; then
+              echo "Staging OK on attempt $i"
+              exit 0
+            fi
+            sleep_seconds=$((2**i))
+            echo "Attempt $i failed. Retrying in ${sleep_seconds}s..."
+            sleep "${sleep_seconds}"
+          done
+          echo "Staging health check failed"
+          exit 1
