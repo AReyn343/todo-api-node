@@ -24,17 +24,25 @@ jobs:
       RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
       APP_URL: ${{ secrets.APP_URL }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Log rollback intent
         run: |
+          set -euo pipefail
           echo "🔁 Rollback initiated"
           echo "Target tag : ${{ github.event.inputs.image_tag }}"
           echo "Reason     : ${{ github.event.inputs.reason }}"
           echo "Triggered by: ${{ github.actor }}"
 
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Verify image exists on GHCR
         run: |
+          set -euo pipefail
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:${{ github.event.inputs.image_tag }}"
           echo "Checking image: $IMAGE"
           docker manifest inspect "$IMAGE" || {
@@ -44,6 +52,7 @@ jobs:
 
       - name: Pull rollback image
         run: |
+          set -euo pipefail
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:${{ github.event.inputs.image_tag }}"
           docker pull "$IMAGE"
           echo "✅ Image pulled: $IMAGE"
@@ -51,13 +60,14 @@ jobs:
       - name: Trigger Render redeploy
         if: env.RENDER_DEPLOY_HOOK != ''
         run: |
-          curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
+          set -euo pipefail
+          curl -fsSL -X POST "$RENDER_DEPLOY_HOOK"
           echo "✅ Render redeploy triggered"
 
       - name: Health check post-rollback (backoff x15)
         if: env.APP_URL != ''
         run: |
-          set -e
+          set -euo pipefail
           url="${APP_URL%/}/health"
           echo "Health check: $url"
           for i in $(seq 1 15); do
@@ -66,7 +76,7 @@ jobs:
               exit 0
             fi
             sleep_seconds=$((2**i))
-            echo "Attempt $i failed. Retrying in ${sleep_seconds}s..."
+            [ "$sleep_seconds" -gt 60 ] && sleep_seconds=60
             sleep "${sleep_seconds}"
           done
           echo "❌ Health check failed after rollback"
@@ -77,6 +87,7 @@ jobs:
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
+          set -euo pipefail
           if [ -z "$DISCORD_WEBHOOK" ]; then exit 0; fi
           if [ "${{ job.status }}" = "success" ]; then
             COLOR=3066993
