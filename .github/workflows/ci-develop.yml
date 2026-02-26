@@ -4,6 +4,9 @@ on:
   push:
     branches: [develop]
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-develop-${{ github.ref }}
   cancel-in-progress: true
@@ -13,8 +16,8 @@ jobs:
     name: Lint + Tests + Coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 20
           cache: npm
@@ -30,14 +33,14 @@ jobs:
     name: Security Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 20
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm audit --audit-level=high --omit=dev
-      - uses: aquasecurity/trivy-action@master
+      - uses: aquasecurity/trivy-action@e368e328979b113139d6f9068e03accaed98a518
         with:
           scan-type: fs
           scan-ref: .
@@ -50,15 +53,16 @@ jobs:
     runs-on: ubuntu-latest
     needs: [quality, security]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
       - name: Compute image tags
         id: meta
         run: |
+          set -euo pipefail
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
           echo "tag_sha=$IMAGE:${GITHUB_SHA}" >> $GITHUB_OUTPUT
           echo "tag_latest=$IMAGE:latest" >> $GITHUB_OUTPUT
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
         with:
           context: .
           push: false
@@ -68,7 +72,7 @@ jobs:
             ${{ steps.meta.outputs.tag_latest }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - uses: aquasecurity/trivy-action@master
+      - uses: aquasecurity/trivy-action@e368e328979b113139d6f9068e03accaed98a518
         with:
           scan-type: image
           image-ref: ${{ steps.meta.outputs.tag_sha }}
@@ -87,11 +91,13 @@ jobs:
     steps:
       - name: Trigger Render staging deploy
         if: env.STAGING_DEPLOY_HOOK != ''
-        run: curl -fsSL -X POST "${{ secrets.STAGING_DEPLOY_HOOK }}"
+        run: |
+          set -euo pipefail
+          curl -fsSL -X POST "$STAGING_DEPLOY_HOOK"
       - name: Health check staging (backoff x15)
         if: env.STAGING_URL != ''
         run: |
-          set -e
+          set -euo pipefail
           url="${STAGING_URL%/}/health"
           echo "Health check staging: $url"
           for i in $(seq 1 15); do
@@ -99,9 +105,9 @@ jobs:
               echo "Staging OK on attempt $i"
               exit 0
             fi
-            sleep_seconds=$((2**i))
-            echo "Attempt $i failed. Retrying in ${sleep_seconds}s..."
-            sleep "${sleep_seconds}"
+          sleep_seconds=$((2**i))
+          [ "$sleep_seconds" -gt 60 ] && sleep_seconds=60
+          sleep "$sleep_seconds"
           done
           echo "Staging health check failed"
           exit 1
@@ -117,18 +123,21 @@ jobs:
       - name: Smoke test — GET /health
         if: env.STAGING_URL != ''
         run: |
+          set -euo pipefail
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${STAGING_URL}/health")
           echo "GET /health → $STATUS"
           [ "$STATUS" = "200" ] || exit 1
       - name: Smoke test — GET /todos
         if: env.STAGING_URL != ''
         run: |
+          set -euo pipefail
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${STAGING_URL}/todos")
           echo "GET /todos → $STATUS"
           [ "$STATUS" = "200" ] || exit 1
       - name: Smoke test — POST /todos
         if: env.STAGING_URL != ''
         run: |
+          set -euo pipefail
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             -X POST "${STAGING_URL}/todos" \
             -H "Content-Type: application/json" \
@@ -147,6 +156,7 @@ jobs:
       - name: Notify Discord
         if: env.DISCORD_WEBHOOK != ''
         run: |
+          set -euo pipefail
           STATUS="${{ needs.smoke-tests.result }}"
           if [ "$STATUS" = "success" ]; then
             COLOR=3066993
