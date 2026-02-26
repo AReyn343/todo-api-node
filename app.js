@@ -1,4 +1,13 @@
 require("dotenv").config();
+
+const Sentry = require("@sentry/node");
+Sentry.init({
+  dsn: process.env.SENTRY_DSN || "",
+  environment: process.env.NODE_ENV || "development",
+  tracesSampleRate: 1.0,
+  enabled: !!process.env.SENTRY_DSN,
+});
+
 const express = require("express");
 const helmet = require("helmet");
 const swaggerUi = require("swagger-ui-express");
@@ -65,8 +74,8 @@ app.get("/", (_req, res) => {
 
 app.use("/todos", todoRouter);
 
-// Global error handler
 app.use((err, _req, res, _next) => {
+  Sentry.captureException(err);
   res.status(500).json({ detail: "Internal server error" });
 });
 
