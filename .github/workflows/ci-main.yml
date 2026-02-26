@@ -3,6 +3,7 @@ name: CI — Production (main)
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ci-main-${{ github.ref }}
@@ -25,10 +26,6 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
-      - uses: actions/upload-artifact@v4
-        with:
-          name: coverage
-          path: coverage/
 
   sonarcloud:
     name: SonarCloud Quality Gate
@@ -43,10 +40,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - uses: actions/download-artifact@v4
-        with:
-          name: coverage
-          path: coverage
+      - run: npm run test:coverage
       - uses: SonarSource/sonarcloud-github-action@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -116,8 +110,9 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs: [docker]
-    environment:
-      name: production
+    env:
+      RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+      APP_URL: ${{ secrets.APP_URL }}
     steps:
       - name: Trigger Render production deploy
         if: env.RENDER_DEPLOY_HOOK != ''
@@ -139,3 +134,73 @@ jobs:
           done
           echo "Production health check failed"
           exit 1
+
+  smoke-tests:
+    name: Smoke Tests post-deploy
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: ${{ always() && needs.deploy-production.result == 'success' }}
+    env:
+      APP_URL: ${{ secrets.APP_URL }}
+    steps:
+      - name: Smoke test — GET /health
+        if: env.APP_URL != ''
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${APP_URL}/health")
+          echo "GET /health → $STATUS"
+          [ "$STATUS" = "200" ] || exit 1
+      - name: Smoke test — GET /todos
+        if: env.APP_URL != ''
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${APP_URL}/todos")
+          echo "GET /todos → $STATUS"
+          [ "$STATUS" = "200" ] || exit 1
+      - name: Smoke test — POST /todos
+        if: env.APP_URL != ''
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "${APP_URL}/todos" \
+            -H "Content-Type: application/json" \
+            -d '{"title":"smoke-test","status":"pending"}')
+          echo "POST /todos → $STATUS"
+          [ "$STATUS" = "201" ] || exit 1
+      - name: Smoke test — GET /docs
+        if: env.APP_URL != ''
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${APP_URL}/docs")
+          echo "GET /docs → $STATUS"
+          [ "$STATUS" = "200" ] || exit 1
+
+  notify-discord:
+    name: Discord Notification
+    runs-on: ubuntu-latest
+    needs: [smoke-tests]
+    if: always()
+    env:
+      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+    steps:
+      - name: Notify Discord
+        if: env.DISCORD_WEBHOOK != ''
+        run: |
+          STATUS="${{ needs.smoke-tests.result }}"
+          if [ "$STATUS" = "success" ]; then
+            COLOR=3066993
+            TITLE="✅ Production deploy succeeded"
+          else
+            COLOR=15158332
+            TITLE="❌ Production deploy failed"
+          fi
+          curl -s -X POST "$DISCORD_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"$TITLE\",
+                \"color\": $COLOR,
+                \"fields\": [
+                  {\"name\": \"Repo\", \"value\": \"${{ github.repository }}\", \"inline\": true},
+                  {\"name\": \"Branch\", \"value\": \"${{ github.ref_name }}\", \"inline\": true},
+                  {\"name\": \"Author\", \"value\": \"${{ github.actor }}\", \"inline\": true}
+                ],
+                \"url\": \"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+              }]
+            }"
