@@ -80,6 +80,7 @@ jobs:
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
           echo "tag_sha=$IMAGE:${GITHUB_SHA}" >> $GITHUB_OUTPUT
           echo "tag_latest=$IMAGE:latest" >> $GITHUB_OUTPUT
+      - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -88,6 +89,8 @@ jobs:
           tags: |
             ${{ steps.meta.outputs.tag_sha }}
             ${{ steps.meta.outputs.tag_latest }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       - uses: aquasecurity/trivy-action@master
         with:
           scan-type: image
