@@ -2,6 +2,8 @@
 
 > Simple REST API CRUD pour la gestion de tâches (todos), construite avec **Express.js** et **SQLite** (sql.js).
 
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=AReyn343_todo-api-node&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=AReyn343_todo-api-node)
+[![codecov](https://codecov.io/gh/AReyn343/todo-api-node/graph/badge.svg?token=06D6LFUEI4)](https://codecov.io/gh/AReyn343/todo-api-node)
 [![CI – Production](https://github.com/AReyn343/todo-api-node/actions/workflows/ci-main.yml/badge.svg)](https://github.com/AReyn343/todo-api-node/actions/workflows/ci-main.yml)
 [![CI – Staging](https://github.com/AReyn343/todo-api-node/actions/workflows/ci-develop.yml/badge.svg)](https://github.com/AReyn343/todo-api-node/actions/workflows/ci-develop.yml)
 [![Uptime Robot status](https://img.shields.io/uptimerobot/status/m802434029-14420fcce6a3ba76b8960be1)](https://stats.uptimerobot.com/802434029)
