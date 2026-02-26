@@ -4,9 +4,6 @@ on:
   push:
     branches: [develop]
 
-permissions:
-  contents: read
-
 concurrency:
   group: ci-develop-${{ github.ref }}
   cancel-in-progress: true
@@ -15,6 +12,8 @@ jobs:
   quality:
     name: Lint + Tests + Coverage
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -22,6 +21,12 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci --ignore-scripts
+      - name: Build Docker image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        with:
+          context: .
+          push: false
+          load: false
       - run: npm run lint
       - run: npm run test:coverage
       - uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238
@@ -32,6 +37,8 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -51,6 +58,8 @@ jobs:
   docker:
     name: Build Docker + Trivy Image Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [quality, security]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -84,6 +93,8 @@ jobs:
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [docker]
     env:
       STAGING_DEPLOY_HOOK: ${{ secrets.STAGING_DEPLOY_HOOK }}
@@ -115,6 +126,8 @@ jobs:
   smoke-tests:
     name: Smoke Tests post-deploy
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [deploy-staging]
     if: ${{ always() && needs.deploy-staging.result == 'success' }}
     env:
@@ -148,6 +161,8 @@ jobs:
   notify-discord:
     name: Discord Notification
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [smoke-tests]
     if: always()
     env:
