@@ -4,8 +4,8 @@
 
 [![CI – Production](https://github.com/AReyn343/todo-api-node/actions/workflows/ci-main.yml/badge.svg)](https://github.com/AReyn343/todo-api-node/actions/workflows/ci-main.yml)
 [![CI – Staging](https://github.com/AReyn343/todo-api-node/actions/workflows/ci-develop.yml/badge.svg)](https://github.com/AReyn343/todo-api-node/actions/workflows/ci-develop.yml)
-[![Uptime Robot status](https://img.shields.io/uptimerobot/status/m802434029-todo-api-node)](https://stats.uptimerobot.com/802434029)
-[![Uptime Robot ratio (30 days)](https://img.shields.io/uptimerobot/ratio/m802434029-todo-api-node)](https://stats.uptimerobot.com/802434029)
+[![Uptime Robot status](https://img.shields.io/uptimerobot/status/m802434029-ur3335303-86a1e15a5b1890b90f086aba)](https://stats.uptimerobot.com/802434029)
+[![Uptime Robot ratio (30 days)](https://img.shields.io/uptimerobot/ratio/m802434029-ur3335303-86a1e15a5b1890b90f086aba)](https://stats.uptimerobot.com/802434029)
 
 ---
 
