@@ -58,9 +58,7 @@ jobs:
           echo "✅ Image pulled: $IMAGE"
 
       - name: Trigger Render redeploy
-        if: secrets.RENDER_DEPLOY_HOOK != ''
-        env:
-          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        if: env.RENDER_DEPLOY_HOOK != ''
         run: |
           set -euo pipefail
           curl -fsSL -X POST "$RENDER_DEPLOY_HOOK"
