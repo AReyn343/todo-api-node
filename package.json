@@ -17,7 +17,8 @@
     "helmet": "^8.1.0",
     "sql.js": "^1.6.0",
     "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "@sentry/node": "^8.0.0"
   },
   "devDependencies": {
     "eslint": "^10.0.2",
