@@ -49,9 +49,11 @@ jobs:
           echo "✅ Image pulled: $IMAGE"
 
       - name: Trigger Render redeploy
-        if: env.RENDER_DEPLOY_HOOK != ''
+        if: secrets.RENDER_DEPLOY_HOOK != ''
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
         run: |
-          curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
+          curl -fsSL -X POST "$RENDER_DEPLOY_HOOK"
           echo "✅ Render redeploy triggered"
 
       - name: Health check post-rollback (backoff x15)
