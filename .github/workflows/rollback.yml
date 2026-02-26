@@ -1,0 +1,101 @@
+name: Rollback — Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "v1.0.0"
+        required: true
+        type: string
+      reason:
+        description: ""
+        required: false
+        type: string
+        default: "Manual rollback"
+
+jobs:
+  rollback:
+    name: Rollback to ${{ github.event.inputs.image_tag }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    env:
+      RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+      APP_URL: ${{ secrets.APP_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log rollback intent
+        run: |
+          echo "🔁 Rollback initiated"
+          echo "Target tag : ${{ github.event.inputs.image_tag }}"
+          echo "Reason     : ${{ github.event.inputs.reason }}"
+          echo "Triggered by: ${{ github.actor }}"
+
+      - name: Verify image exists on GHCR
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:${{ github.event.inputs.image_tag }}"
+          echo "Checking image: $IMAGE"
+          docker manifest inspect "$IMAGE" || {
+            echo "❌ Image $IMAGE not found on GHCR"
+            exit 1
+          }
+
+      - name: Pull rollback image
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:${{ github.event.inputs.image_tag }}"
+          docker pull "$IMAGE"
+          echo "✅ Image pulled: $IMAGE"
+
+      - name: Trigger Render redeploy
+        if: env.RENDER_DEPLOY_HOOK != ''
+        run: |
+          curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
+          echo "✅ Render redeploy triggered"
+
+      - name: Health check post-rollback (backoff x15)
+        if: env.APP_URL != ''
+        run: |
+          set -e
+          url="${APP_URL%/}/health"
+          echo "Health check: $url"
+          for i in $(seq 1 15); do
+            if curl -fsS "$url" > /dev/null; then
+              echo "✅ Rollback health check OK on attempt $i"
+              exit 0
+            fi
+            sleep_seconds=$((2**i))
+            echo "Attempt $i failed. Retrying in ${sleep_seconds}s..."
+            sleep "${sleep_seconds}"
+          done
+          echo "❌ Health check failed after rollback"
+          exit 1
+
+      - name: Notify Discord — Rollback result
+        if: always()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then exit 0; fi
+          if [ "${{ job.status }}" = "success" ]; then
+            COLOR=3066993
+            TITLE="✅ Rollback succeeded → ${{ github.event.inputs.image_tag }}"
+          else
+            COLOR=15158332
+            TITLE="❌ Rollback FAILED → ${{ github.event.inputs.image_tag }}"
+          fi
+          curl -s -X POST "$DISCORD_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"$TITLE\",
+                \"color\": $COLOR,
+                \"fields\": [
+                  {\"name\": \"Tag\", \"value\": \"${{ github.event.inputs.image_tag }}\", \"inline\": true},
+                  {\"name\": \"Reason\", \"value\": \"${{ github.event.inputs.reason }}\", \"inline\": true},
+                  {\"name\": \"Triggered by\", \"value\": \"${{ github.actor }}\", \"inline\": true}
+                ],
+                \"url\": \"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+              }]
+            }"
