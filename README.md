@@ -2,6 +2,11 @@
 
 > Simple REST API CRUD pour la gestion de tâches (todos), construite avec **Express.js** et **SQLite** (sql.js).
 
+[![CI – Production](https://github.com/AReyn343/todo-api-node/actions/workflows/ci-main.yml/badge.svg)](https://github.com/AReyn343/todo-api-node/actions/workflows/ci-main.yml)
+[![CI – Staging](https://github.com/AReyn343/todo-api-node/actions/workflows/ci-develop.yml/badge.svg)](https://github.com/AReyn343/todo-api-node/actions/workflows/ci-develop.yml)
+[![Uptime Robot status](https://img.shields.io/uptimerobot/status/m802434029-todo-api-node)](https://stats.uptimerobot.com/802434029)
+[![Uptime Robot ratio (30 days)](https://img.shields.io/uptimerobot/ratio/m802434029-todo-api-node)](https://stats.uptimerobot.com/802434029)
+
 ---
 
 ## 📋 Table des matières
@@ -26,10 +31,12 @@
 - **Base de données** : SQLite via sql.js (in-memory + persistance fichier)
 - **Documentation** : Swagger UI (swagger-jsdoc + swagger-ui-express)
 - **Sécurité** : Helmet
+- **Observabilité** : Sentry
 - **Tests** : Jest + Supertest
 - **Lint** : ESLint 10 (flat config)
 - **CI/CD** : GitHub Actions → Render.com
 - **Conteneurisation** : Docker (multi-stage, non-root)
+- **Monitoring** : UptimeRobot
 
 ---
 
@@ -63,6 +70,7 @@ cp .env.example .env
 | `PORT` | `3000` | Port d'écoute du serveur |
 | `DB_PATH` | `todo.db` | Chemin vers le fichier SQLite |
 | `NODE_ENV` | `development` | Environnement (`development`, `staging`, `production`) |
+| `SENTRY_DSN` | _(vide)_ | DSN Sentry pour l'observabilité (optionnel) |
 
 > ⚠️ Ne jamais committer le fichier `.env` — il est dans le `.gitignore`.
 
@@ -71,11 +79,7 @@ cp .env.example .env
 ## Lancer l'API
 
 ```bash
-# Développement
 npm start
-
-# Avec nodemon (hot reload)
-npx nodemon app.js
 ```
 
 L'API est disponible sur `http://localhost:3000`.
@@ -116,7 +120,7 @@ docker pull ghcr.io/areyn343/todo-api-node:latest
 ### Exemple — Créer un todo
 
 ```bash
-curl -X POST http://localhost:3000/todos \
+curl -X POST https://todo-api-node-y2tg.onrender.com/todos \
   -H "Content-Type: application/json" \
   -d '{"title": "Acheter du pain", "description": "Boulangerie", "status": "pending"}'
 ```
@@ -148,7 +152,7 @@ Réponse :
 
 La documentation interactive est disponible sur :
 
-- **Production** : `https://<deploy-url>/docs`
+- **Production** : `https://todo-api-node-y2tg.onrender.com/docs`
 - **Local** : `http://localhost:3000/docs`
 
 ---
@@ -177,6 +181,8 @@ Deux pipelines GitHub Actions :
 3. Security scan (npm audit + Trivy)
 4. Build Docker + Trivy image scan
 5. Deploy → Render staging
+6. Smoke tests post-deploy
+7. Notification Discord
 
 ### `ci-main.yml` — Production (branche `main`)
 1. Lint (ESLint)
@@ -185,6 +191,8 @@ Deux pipelines GitHub Actions :
 4. Security scan (npm audit + Trivy)
 5. Build Docker + Trivy image scan + Push GHCR
 6. Deploy → Render production
+7. Smoke tests post-deploy
+8. Notification Discord
 
 ### Secrets GitHub requis
 
@@ -196,3 +204,5 @@ Deux pipelines GitHub Actions :
 | `STAGING_URL` | URL de l'application en staging |
 | `SONAR_TOKEN` | Token SonarCloud |
 | `CODECOV_TOKEN` | Token Codecov (optionnel) |
+| `DISCORD_WEBHOOK` | Webhook Discord pour les notifications |
+| `SENTRY_DSN` | DSN Sentry pour l'observabilité |
