@@ -8,6 +8,7 @@
 [![CI – Staging](https://github.com/AReyn343/todo-api-node/actions/workflows/ci-develop.yml/badge.svg)](https://github.com/AReyn343/todo-api-node/actions/workflows/ci-develop.yml)
 [![Uptime Robot status](https://img.shields.io/uptimerobot/status/m802434029-14420fcce6a3ba76b8960be1)](https://stats.uptimerobot.com/802434029)
 [![Uptime Robot ratio (30 days)](https://img.shields.io/uptimerobot/ratio/m802434029-14420fcce6a3ba76b8960be1)](https://stats.uptimerobot.com/802434029)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=AReyn343_todo-api-node&metric=coverage)](https://sonarcloud.io/summary/new_code?id=AReyn343_todo-api-node)
 
 ---
 
@@ -178,23 +179,21 @@ Coverage minimum requis : **70%** (lignes, fonctions, branches).
 Deux pipelines GitHub Actions :
 
 ### `ci-develop.yml` — Staging (branche `develop`)
-1. Lint (ESLint)
-2. Tests + Coverage
-3. Security scan (npm audit + Trivy)
-4. Build Docker + Trivy image scan
-5. Deploy → Render staging
-6. Smoke tests post-deploy
+1. Lint (ESLint) + Tests + Coverage
+2. Security scan (npm audit + Trivy)
+3. Build Docker + Trivy image scan
+4. Deploy → Render staging
+5. Smoke tests post-deploy
 7. Notification Discord
 
 ### `ci-main.yml` — Production (branche `main`)
-1. Lint (ESLint)
-2. Tests + Coverage
-3. SonarCloud Quality Gate
-4. Security scan (npm audit + Trivy)
-5. Build Docker + Trivy image scan + Push GHCR
-6. Deploy → Render production
-7. Smoke tests post-deploy
-8. Notification Discord
+1. Lint (ESLint) + Tests + Coverage
+2. SonarCloud Quality Gate
+3. Security scan (npm audit + Trivy)
+4. Build Docker + Trivy image scan + Push GHCR
+5. Deploy → Render production
+6. Smoke tests post-deploy
+7. Notification Discord
 
 ### Secrets GitHub requis
 
